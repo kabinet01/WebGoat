@@ -31,9 +31,14 @@ public class MissingFunctionACUsers {
   private final MissingAccessControlUserRepository userRepository;
 
   @GetMapping(path = {"access-control/users"})
-  public ModelAndView listUsers() {
+  public ModelAndView listUsers(@CurrentUsername String username) {
 
     ModelAndView model = new ModelAndView();
+    if (!isAdmin(username)) {
+      model.setStatus(HttpStatus.FORBIDDEN);
+      return model;
+    }
+
     model.setViewName("list_users");
     List<User> allUsers = userRepository.findAllUsers();
     model.addObject("numUsers", allUsers.size());
@@ -51,11 +56,19 @@ public class MissingFunctionACUsers {
       path = {"access-control/users"},
       consumes = "application/json")
   @ResponseBody
-  public ResponseEntity<List<DisplayUser>> usersService() {
+  public ResponseEntity<List<DisplayUser>> usersService(@CurrentUsername String username) {
+    if (!isAdmin(username)) {
+      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
     return ResponseEntity.ok(
         userRepository.findAllUsers().stream()
             .map(user -> new DisplayUser(user, PASSWORD_SALT_SIMPLE))
             .collect(Collectors.toList()));
+  }
+
+  private boolean isAdmin(String username) {
+    var currentUser = userRepository.findByUsername(username);
+    return currentUser != null && currentUser.isAdmin();
   }
 
   @GetMapping(

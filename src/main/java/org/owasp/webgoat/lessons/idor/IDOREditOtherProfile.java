@@ -43,15 +43,19 @@ public class IDOREditOtherProfile implements AssignmentEndpoint {
       @PathVariable("userId") String userId, @RequestBody UserProfile userSubmittedProfile) {
 
     String authUserId = (String) userSessionData.getValue("idor-authenticated-user-id");
-    // this is where it starts ... accepting the user submitted ID and assuming it will be the same
-    // as the logged in userId and not checking for proper authorization
-    // Certain roles can sometimes edit others' profiles, but we shouldn't just assume that and let
-    // everyone, right?
-    // Except that this is a vulnerable app ... so we will
+    // Horizontal access control: the record being written is the one named in the path
+    // ({userId}), and the caller's real identity is the one established server-side at login
+    // (authUserId) -- never a self-reported id in the request body. A caller may only write
+    // their own record unless they are an admin (nobody in this lesson's data set is).
+    boolean isOwnRecord = authUserId != null && authUserId.equals(userId);
     UserProfile currentUserProfile = new UserProfile(userId);
-    if (userSubmittedProfile.getUserId() != null
-        && !userSubmittedProfile.getUserId().equals(authUserId)) {
-      // let's get this started ...
+
+    if (!isOwnRecord) {
+      UserProfile callerProfile = authUserId != null ? new UserProfile(authUserId) : null;
+      if (callerProfile == null || !callerProfile.isAdmin()) {
+        return failed(this).feedback("idor.edit.profile.failure3").build();
+      }
+      // an authorized admin editing someone else's profile ...
       currentUserProfile.setColor(userSubmittedProfile.getColor());
       currentUserProfile.setRole(userSubmittedProfile.getRole());
       // we will persist in the session object for now in case we want to refer back or use it later
@@ -85,18 +89,15 @@ public class IDOREditOtherProfile implements AssignmentEndpoint {
           .feedback("idor.edit.profile.failure3")
           .output(currentUserProfile.profileToMap().toString())
           .build();
-    } else if (userSubmittedProfile.getUserId() != null
-        && userSubmittedProfile.getUserId().equals(authUserId)) {
-      return failed(this).feedback("idor.edit.profile.failure4").build();
     }
 
-    if (currentUserProfile.getColor().equals("black") && currentUserProfile.getRole() <= 1) {
-      return success(this)
-          .feedback("idor.edit.profile.success2")
-          .output(userSessionData.getValue("idor-updated-own-profile").toString())
-          .build();
-    } else {
-      return failed(this).feedback("idor.edit.profile.failure3").build();
-    }
+    // legitimate self-service: a user may always edit their own profile
+    currentUserProfile.setColor(userSubmittedProfile.getColor());
+    currentUserProfile.setRole(userSubmittedProfile.getRole());
+    userSessionData.setValue("idor-updated-own-profile", currentUserProfile);
+    return success(this)
+        .feedback("idor.edit.profile.success2")
+        .output(currentUserProfile.profileToMap().toString())
+        .build();
   }
 }

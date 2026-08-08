@@ -8,6 +8,8 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import com.thoughtworks.xstream.XStream;
+import com.thoughtworks.xstream.converters.ConversionException;
+import com.thoughtworks.xstream.mapper.MapperWrapper;
 import org.apache.commons.lang3.StringUtils;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -21,9 +23,33 @@ import org.springframework.web.bind.annotation.RestController;
 @AssignmentHints({"vulnerable.hint"})
 public class VulnerableComponentsLesson implements AssignmentEndpoint {
 
+  // The only type this lesson ever legitimately needs XStream to instantiate from XML.
+  // The xstream.version pinned by this project (1.4.5) predates XStream's built-in
+  // TypePermission security framework (added in 1.4.7), so it has no addPermission()/
+  // denyTypes() API to call. This is the mitigation XStream itself documented for
+  // releases before the framework existed: wrap the Mapper and refuse to resolve any
+  // class/alias that isn't on an explicit allow-list before it is ever instantiated. That
+  // closes off CVE-2013-7285-style gadgets (dynamic-proxy / java.beans.EventHandler /
+  // java.lang.ProcessBuilder, or any other class on the classpath) without touching pom.xml.
+  private static final String ALLOWED_ALIAS = "contact";
+
   @PostMapping("/VulnerableComponents/attack1")
   public @ResponseBody AttackResult completed(@RequestParam String payload) {
-    XStream xstream = new XStream();
+    XStream xstream =
+        new XStream() {
+          @Override
+          protected MapperWrapper wrapMapper(MapperWrapper next) {
+            return new MapperWrapper(next) {
+              @Override
+              public Class realClass(String elementName) {
+                if (!ALLOWED_ALIAS.equals(elementName)) {
+                  throw new ConversionException("Not allowed to deserialize: " + elementName);
+                }
+                return super.realClass(elementName);
+              }
+            };
+          }
+        };
     xstream.setClassLoader(Contact.class.getClassLoader());
     xstream.alias("contact", ContactImpl.class);
     xstream.ignoreUnknownElements();

@@ -9,7 +9,11 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.succes
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.Base64;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -37,7 +41,14 @@ import org.springframework.web.client.RestTemplate;
 @Slf4j
 public class Assignment7 implements AssignmentEndpoint {
 
-  public static final String ADMIN_PASSWORD_LINK = "375afe1104f4a487a73823c50a9292a2";
+  private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
+  // Maps a securely-random, single-use reset token to the account it was issued for. Reset
+  // links used to be predictable (a fixed seed for "admin") or even a hardcoded constant, so
+  // anyone could compute or simply read the admin's reset link without ever requesting it or
+  // reading the admin's mailbox. Tokens are now unpredictable, bound to the account they were
+  // generated for, and consumed (removed) the moment they are used.
+  private final Map<String, String> pendingResetLinks = new ConcurrentHashMap<>();
 
   private static final String TEMPLATE =
       "Hi, you requested a password reset link, please use this <a target='_blank'"
@@ -63,7 +74,9 @@ public class Assignment7 implements AssignmentEndpoint {
 
   @GetMapping("/challenge/7/reset-password/{link}")
   public ResponseEntity<String> resetPassword(@PathVariable(value = "link") String link) {
-    if (link.equals(ADMIN_PASSWORD_LINK)) {
+    // Single use: the token is removed as soon as it is redeemed, valid or not.
+    String username = pendingResetLinks.remove(link);
+    if ("admin".equalsIgnoreCase(username)) {
       return ResponseEntity.accepted()
           .body(
               "<h1>Success!!</h1>"
@@ -83,14 +96,14 @@ public class Assignment7 implements AssignmentEndpoint {
       String username = email.substring(0, email.indexOf("@"));
       if (StringUtils.hasText(username)) {
         URI uri = new URI(request.getRequestURL().toString());
+        String resetLink = generateSecureResetToken();
+        pendingResetLinks.put(resetLink, username);
         Email mail =
             Email.builder()
                 .title("Your password reset link for challenge 7")
                 .contents(
                     String.format(
-                        TEMPLATE,
-                        uri.getScheme() + "://" + uri.getHost(),
-                        new PasswordResetLink().createPasswordReset(username, "webgoat")))
+                        TEMPLATE, uri.getScheme() + "://" + uri.getHost(), resetLink))
                 .sender("password-reset@webgoat-cloud.net")
                 .recipient(username)
                 .time(LocalDateTime.now())
@@ -99,6 +112,12 @@ public class Assignment7 implements AssignmentEndpoint {
       }
     }
     return success(this).feedback("email.send").feedbackArgs(email).build();
+  }
+
+  private static String generateSecureResetToken() {
+    byte[] randomBytes = new byte[24];
+    SECURE_RANDOM.nextBytes(randomBytes);
+    return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
   }
 
   @GetMapping(value = "/challenge/7/.git", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)

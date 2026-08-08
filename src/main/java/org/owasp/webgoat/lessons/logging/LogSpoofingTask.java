@@ -24,7 +24,10 @@ public class LogSpoofingTask implements AssignmentEndpoint {
     if (Strings.isEmpty(username)) {
       return failed(this).output(username).build();
     }
-    username = username.replace("\n", "<br/>");
+    // Neutralise CR/LF and other control characters *before* the value is treated as something
+    // that will be written to a log: once removed, user input can no longer be used to forge a
+    // new, fake log line, regardless of how the remainder of the value is rendered.
+    username = username.replaceAll("\\p{Cntrl}", "_");
     if (username.contains("<p>") || username.contains("<div>")) {
       return failed(this).output("Try to think of something simple ").build();
     }

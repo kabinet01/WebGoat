@@ -5,6 +5,8 @@
 package org.owasp.webgoat.lessons.challenges.challenge7;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -12,7 +14,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import org.hamcrest.CoreMatchers;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.owasp.webgoat.container.plugins.LessonTest;
+import org.owasp.webgoat.lessons.challenges.Email;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.HttpStatus;
@@ -37,11 +41,26 @@ class Assignment7Test extends LessonTest {
         mockMvc.perform(MockMvcRequestBuilders.get(RESET_PASSWORD_PATH + "/any"));
     result.andExpect(status().is(equalTo(HttpStatus.I_AM_A_TEAPOT.value())));
 
-    result =
-        mockMvc.perform(
-            MockMvcRequestBuilders.get(
-                RESET_PASSWORD_PATH + "/" + Assignment7.ADMIN_PASSWORD_LINK));
+    // Requesting a reset issues a fresh, single-use, random token for the target account
+    // (instead of the old fixed/predictable admin link); capture the one that was mailed out
+    // and use that exact token to prove the redemption path still works end-to-end.
+    mockMvc.perform(
+        MockMvcRequestBuilders.post(CHALLENGE_PATH).param("email", "admin@webgoat-cloud.net"));
+
+    ArgumentCaptor<Email> mailCaptor = ArgumentCaptor.forClass(Email.class);
+    verify(restTemplate).postForEntity(any(), mailCaptor.capture(), any());
+    String contents = mailCaptor.getValue().getContents();
+    String resetLink =
+        contents.substring(
+            contents.indexOf("reset-password/") + "reset-password/".length(),
+            contents.indexOf("'>link</a>"));
+
+    result = mockMvc.perform(MockMvcRequestBuilders.get(RESET_PASSWORD_PATH + "/" + resetLink));
     result.andExpect(status().is(equalTo(HttpStatus.ACCEPTED.value())));
+
+    // Single use: replaying the very same link a second time must no longer succeed.
+    result = mockMvc.perform(MockMvcRequestBuilders.get(RESET_PASSWORD_PATH + "/" + resetLink));
+    result.andExpect(status().is(equalTo(HttpStatus.I_AM_A_TEAPOT.value())));
   }
 
   @Test

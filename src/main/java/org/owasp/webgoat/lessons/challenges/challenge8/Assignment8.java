@@ -4,7 +4,6 @@
  */
 package org.owasp.webgoat.lessons.challenges.challenge8;
 
-import jakarta.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -39,20 +38,16 @@ public class Assignment8 implements AssignmentEndpoint {
 
   @GetMapping(value = "/challenge/8/vote/{stars}", produces = MediaType.APPLICATION_JSON_VALUE)
   @ResponseBody
-  public ResponseEntity<?> vote(
-      @PathVariable(value = "stars") int nrOfStars, HttpServletRequest request) {
-    // Simple implementation of VERB Based Authentication
-    String msg = "";
-    if (request.getMethod().equals("GET")) {
-      var json =
-          Map.of("error", true, "message", "Sorry but you need to login first in order to vote");
-      return ResponseEntity.status(200).body(json);
-    }
-    Integer allVotesForStar = votes.getOrDefault(nrOfStars, 0);
-    votes.put(nrOfStars, allVotesForStar + 1);
-    return ResponseEntity.ok()
-        .header("X-FlagController", "Thanks for voting, your flag is: " + flags.getFlag(8))
-        .build();
+  public ResponseEntity<?> vote(@PathVariable(value = "stars") int nrOfStars) {
+    // Voting requires a real login, which this endpoint never actually had: the previous
+    // implementation branched on request.getMethod(), a check that is bypassed simply by
+    // reaching this handler through any HTTP verb other than the literal string "GET" (e.g.
+    // HEAD, which Spring routes to the same @GetMapping handler). The decision must not depend
+    // on which verb was used to reach the code, so the same response is now returned
+    // unconditionally, regardless of the verb.
+    var json =
+        Map.of("error", true, "message", "Sorry but you need to login first in order to vote");
+    return ResponseEntity.status(200).body(json);
   }
 
   @GetMapping("/challenge/8/votes/")

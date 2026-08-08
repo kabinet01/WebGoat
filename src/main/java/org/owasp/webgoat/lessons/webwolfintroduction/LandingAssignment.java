@@ -7,7 +7,8 @@ package org.owasp.webgoat.lessons.webwolfintroduction;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
-import org.apache.commons.lang3.StringUtils;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import org.owasp.webgoat.container.CurrentUsername;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -32,19 +33,24 @@ public class LandingAssignment implements AssignmentEndpoint {
 
   @PostMapping("/WebWolf/landing")
   @ResponseBody
-  public AttackResult click(String uniqueCode, @CurrentUsername String username) {
-    if (StringUtils.reverse(username).equals(uniqueCode)) {
+  public AttackResult click(String uniqueCode, HttpServletRequest request) {
+    String expectedUniqueCode =
+        (String) request.getSession().getAttribute(WebWolfCode.SESSION_KEY);
+    if (expectedUniqueCode != null && expectedUniqueCode.equals(uniqueCode)) {
       return success(this).build();
     }
     return failed(this).feedback("webwolf.landing_wrong").build();
   }
 
   @GetMapping("/WebWolf/landing/password-reset")
-  public ModelAndView openPasswordReset(@CurrentUsername String username) {
+  public ModelAndView openPasswordReset(@CurrentUsername String username, HttpServletRequest request) {
+    HttpSession session = request.getSession();
+    String uniqueCode = WebWolfCode.getOrCreate(session, username);
+
     ModelAndView modelAndView = new ModelAndView();
     modelAndView.addObject(
         "webwolfLandingPageUrl", landingPageUrl.replace("//landing", "/landing"));
-    modelAndView.addObject("uniqueCode", StringUtils.reverse(username));
+    modelAndView.addObject("uniqueCode", uniqueCode);
 
     modelAndView.setViewName("lessons/webwolfintroduction/templates/webwolfPasswordReset.html");
     return modelAndView;

@@ -7,13 +7,11 @@ package org.owasp.webgoat.lessons.jwt.claimmisuse;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
-import com.auth0.jwk.JwkException;
-import com.auth0.jwk.JwkProviderBuilder;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.JWTVerificationException;
-import java.net.MalformedURLException;
-import java.net.URL;
+import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPublicKey;
 import org.apache.commons.lang3.StringUtils;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
@@ -37,6 +35,23 @@ import org.springframework.web.bind.annotation.RestController;
 })
 public class JWTHeaderJKUEndpoint implements AssignmentEndpoint {
 
+  // A token must never be trusted to say where its own verification key lives: whoever
+  // controls the "jku" URL controls what counts as "trusted". Instead of dereferencing the
+  // jku the token supplies, verification is always pinned to a key the server generated and
+  // holds itself. Generated once (static final) so it stays stable for the lifetime of the
+  // running instance.
+  private static final RSAPublicKey TRUSTED_PUBLIC_KEY = generateTrustedPublicKey();
+
+  private static RSAPublicKey generateTrustedPublicKey() {
+    try {
+      var keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+      keyPairGenerator.initialize(2048);
+      return (RSAPublicKey) keyPairGenerator.generateKeyPair().getPublic();
+    } catch (NoSuchAlgorithmException e) {
+      throw new IllegalStateException("Unable to generate the trusted JWT verification key", e);
+    }
+  }
+
   @PostMapping("jku/follow/{user}")
   public @ResponseBody String follow(@PathVariable("user") String user) {
     if ("Jerry".equals(user)) {
@@ -52,12 +67,8 @@ public class JWTHeaderJKUEndpoint implements AssignmentEndpoint {
       return failed(this).feedback("jwt-invalid-token").build();
     } else {
       try {
-        var decodedJWT = JWT.decode(token);
-        var jku = decodedJWT.getHeaderClaim("jku");
-        var jwkProvider = new JwkProviderBuilder(new URL(jku.asString())).build();
-        var jwk = jwkProvider.get(decodedJWT.getKeyId());
-        var algorithm = Algorithm.RSA256((RSAPublicKey) jwk.getPublicKey());
-        JWT.require(algorithm).build().verify(decodedJWT);
+        var algorithm = Algorithm.RSA256(TRUSTED_PUBLIC_KEY);
+        var decodedJWT = JWT.require(algorithm).build().verify(token);
 
         var username = decodedJWT.getClaims().get("username").asString();
         if ("Jerry".equals(username)) {
@@ -68,7 +79,7 @@ public class JWTHeaderJKUEndpoint implements AssignmentEndpoint {
         } else {
           return failed(this).feedback("jwt-final-not-tom").build();
         }
-      } catch (MalformedURLException | JWTVerificationException | JwkException e) {
+      } catch (JWTVerificationException e) {
         return failed(this).feedback("jwt-invalid-token").output(e.toString()).build();
       }
     }

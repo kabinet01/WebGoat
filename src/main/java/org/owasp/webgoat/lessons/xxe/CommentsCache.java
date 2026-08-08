@@ -70,11 +70,15 @@ public class CommentsCache {
     var jc = JAXBContext.newInstance(Comment.class);
     var xif = XMLInputFactory.newInstance();
 
-    // TODO fix me disabled for now.
-    if (securityEnabled) {
-      xif.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, ""); // Compliant
-      xif.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, ""); // compliant
-    }
+    // Always disable DTDs and external entities, regardless of the (now vestigial)
+    // securityEnabled flag: every caller in this lesson family (simple, content-type, blind)
+    // shares this parser, so gating the protection on a caller-supplied flag left some
+    // callers unprotected. Comments never legitimately need a DOCTYPE, so disabling DTD
+    // support entirely is both the strongest and the smallest fix.
+    xif.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+    xif.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
+    xif.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, ""); // Compliant
+    xif.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, ""); // compliant
 
     var xsr = xif.createXMLStreamReader(new StringReader(xml));
 

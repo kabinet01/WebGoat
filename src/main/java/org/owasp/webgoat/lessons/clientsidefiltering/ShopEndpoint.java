@@ -50,11 +50,12 @@ public class ShopEndpoint {
     this.checkoutCodes = new CheckoutCodes(codes);
   }
 
+  // The super/free coupon is an internal-only code and must never be handed back to the
+  // client, either individually or as part of the full listing below: filtering which
+  // coupons a client may learn about has to happen server-side, not by shipping every
+  // coupon and trusting the client to only display the "public" ones.
   @GetMapping(value = "/coupons/{code}", produces = MediaType.APPLICATION_JSON_VALUE)
   public CheckoutCode getDiscountCode(@PathVariable String code) {
-    if (ClientSideFilteringFreeAssignment.SUPER_COUPON_CODE.equals(code)) {
-      return new CheckoutCode(ClientSideFilteringFreeAssignment.SUPER_COUPON_CODE, 100);
-    }
     return checkoutCodes.get(code).orElse(new CheckoutCode("no", 0));
   }
 
@@ -62,7 +63,6 @@ public class ShopEndpoint {
   public CheckoutCodes all() {
     List<CheckoutCode> all = Lists.newArrayList();
     all.addAll(this.checkoutCodes.getCodes());
-    all.add(new CheckoutCode(ClientSideFilteringFreeAssignment.SUPER_COUPON_CODE, 100));
     return new CheckoutCodes(all);
   }
 }
