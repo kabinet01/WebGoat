@@ -60,15 +60,18 @@ public class AccountVerificationHelper {
       return false;
     }
 
-    if (submittedQuestions.containsKey("secQuestion0")
-        && !submittedQuestions
+    // every expected question must actually be present (not just absent-and-therefore-skipped)
+    // and its submitted answer must match; renaming/omitting a parameter must fail the check
+    // instead of silently passing it.
+    if (!submittedQuestions.containsKey("secQuestion0")
+        || !submittedQuestions
             .get("secQuestion0")
             .equals(secQuestionStore.get(verifyUserId).get("secQuestion0"))) {
       return false;
     }
 
-    if (submittedQuestions.containsKey("secQuestion1")
-        && !submittedQuestions
+    if (!submittedQuestions.containsKey("secQuestion1")
+        || !submittedQuestions
             .get("secQuestion1")
             .equals(secQuestionStore.get(verifyUserId).get("secQuestion1"))) {
       return false;
