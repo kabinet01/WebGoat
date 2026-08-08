@@ -4,9 +4,11 @@
  */
 package org.owasp.webgoat.webwolf.mailbox;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -18,6 +20,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -55,6 +59,7 @@ public class MailboxControllerTest {
   public void sendingMailShouldStoreIt() throws Exception {
     Email email =
         Email.builder()
+            .id(42L)
             .contents("This is a test mail")
             .recipient("test1234@webgoat.org")
             .sender("hacker@webgoat.org")
@@ -68,6 +73,10 @@ public class MailboxControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsBytes(email)))
         .andExpect(status().isCreated());
+
+    var storedEmail = ArgumentCaptor.forClass(Email.class);
+    Mockito.verify(mailbox).save(storedEmail.capture());
+    assertThat(storedEmail.getValue().getId()).isNull();
   }
 
   @Test
@@ -115,5 +124,24 @@ public class MailboxControllerTest {
         .andExpect(status().isOk())
         .andExpect(view().name("mailbox"))
         .andExpect(content().string(not(containsString("Click this mail"))));
+  }
+
+  @Test
+  @WithMockUser(username = "test1234")
+  void userDeletesOnlyOwnEmail() throws Exception {
+    Email ownEmail =
+        Email.builder()
+            .id(1L)
+            .recipient("test1234")
+            .contents("own mail")
+            .time(LocalDateTime.now())
+            .build();
+    Mockito.when(mailbox.findByRecipientOrderByTimeDesc("test1234"))
+        .thenReturn(List.of(ownEmail));
+
+    mvc.perform(delete("/mail").with(csrf())).andExpect(status().isAccepted());
+
+    Mockito.verify(mailbox).deleteAll(List.of(ownEmail));
+    Mockito.verify(mailbox, Mockito.never()).deleteAll();
   }
 }

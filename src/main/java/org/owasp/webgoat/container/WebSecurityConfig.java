@@ -48,7 +48,7 @@ public class WebSecurityConfig {
                         "/registration",
                         "/register.mvc",
                         "/csrf/token",
-                        "/actuator/**")
+                        "/actuator/health")
                     .permitAll()
                     .anyRequest()
                     .authenticated())

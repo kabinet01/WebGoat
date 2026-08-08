@@ -20,10 +20,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.owasp.webgoat.WithWebGoatUser;
 import org.owasp.webgoat.container.plugins.LessonTest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 @WithWebGoatUser
 class CsrfProtectionTest extends LessonTest {
+
+  @Autowired private Environment environment;
 
   @BeforeEach
   void setupSecurity() {
@@ -101,5 +105,24 @@ class CsrfProtectionTest extends LessonTest {
                 .cookie(tokenCookie)
                 .header("X-XSRF-TOKEN", token))
         .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void anonymousHealthProbeIsMinimal() throws Exception {
+    mockMvc
+        .perform(get("/actuator/health").with(anonymous()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").exists())
+        .andExpect(jsonPath("$.components").doesNotExist());
+  }
+
+  @Test
+  void actuatorConfigurationIsNotExposed() throws Exception {
+    mockMvc.perform(get("/actuator/env")).andExpect(status().isNotFound());
+  }
+
+  @Test
+  void errorResponsesAreConfiguredWithoutStackTraces() {
+    assertThat(environment.getProperty("server.error.include-stacktrace")).isEqualTo("never");
   }
 }
