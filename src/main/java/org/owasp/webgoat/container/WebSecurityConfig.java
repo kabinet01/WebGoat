@@ -5,8 +5,9 @@
 package org.owasp.webgoat.container;
 
 import lombok.AllArgsConstructor;
-import org.owasp.webgoat.security.CsrfCookieFilter;
 import org.owasp.webgoat.container.users.UserService;
+import org.owasp.webgoat.security.CsrfCookieFilter;
+import org.owasp.webgoat.security.CsrfRequestMatchers;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -68,7 +69,10 @@ public class WebSecurityConfig {
         .csrf(
             csrf ->
                 csrf.csrfTokenRepository(csrfTokenRepository)
-                    .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
+                    .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+                    .ignoringRequestMatchers(
+                        CsrfRequestMatchers.tokenlessApiAuthentication(
+                            "/login", "/register.mvc")))
         .addFilterAfter(new CsrfCookieFilter(), CsrfFilter.class)
         .exceptionHandling(
             handling ->

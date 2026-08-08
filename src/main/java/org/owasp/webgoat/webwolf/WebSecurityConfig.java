@@ -7,6 +7,7 @@ package org.owasp.webgoat.webwolf;
 import lombok.AllArgsConstructor;
 import org.owasp.webgoat.container.AjaxAuthenticationEntryPoint;
 import org.owasp.webgoat.security.CsrfCookieFilter;
+import org.owasp.webgoat.security.CsrfRequestMatchers;
 import org.owasp.webgoat.webwolf.user.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -56,7 +57,9 @@ public class WebSecurityConfig {
             csrf ->
                 csrf.csrfTokenRepository(csrfTokenRepository)
                     .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
-                    .ignoringRequestMatchers(new AntPathRequestMatcher("/mail", "POST")))
+                    .ignoringRequestMatchers(
+                        CsrfRequestMatchers.tokenlessApiAuthentication("/login"),
+                        new AntPathRequestMatcher("/mail", "POST")))
         .addFilterAfter(new CsrfCookieFilter(), CsrfFilter.class)
         .formLogin(
             login ->

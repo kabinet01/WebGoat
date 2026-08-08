@@ -49,6 +49,27 @@ class CsrfProtectionTest {
   }
 
   @Test
+  void headerlessApiLoginCanBootstrapSessionWithoutCsrfToken() throws Exception {
+    mvc.perform(
+            post("/login")
+                .with(anonymous())
+                .param("username", "invalid")
+                .param("password", "invalid"))
+        .andExpect(status().isFound());
+  }
+
+  @Test
+  void browserOriginatedLoginWithoutCsrfTokenIsRejected() throws Exception {
+    mvc.perform(
+            post("/login")
+                .with(anonymous())
+                .header("Origin", "https://attacker.example")
+                .param("username", "invalid")
+                .param("password", "invalid"))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
   void loginFormContainsCsrfToken() throws Exception {
     mvc.perform(get("/login").with(anonymous()))
         .andExpect(status().isOk())
