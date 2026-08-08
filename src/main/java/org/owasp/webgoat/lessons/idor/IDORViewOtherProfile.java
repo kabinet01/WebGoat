@@ -47,10 +47,14 @@ public class IDORViewOtherProfile implements AssignmentEndpoint {
       // going to use session auth to view this one
       String authUserId = (String) userSessionData.getValue("idor-authenticated-user-id");
       if (userId != null && !userId.equals(authUserId)) {
-        // on the right track
+        // horizontal access control check: being logged in is not enough, the caller must
+        // actually be authorized (e.g. an admin) to view someone else's profile. The caller's
+        // own record is looked up server-side from authUserId, never trusted from the request.
+        UserProfile callerProfile = new UserProfile(authUserId);
+        if (!callerProfile.isAdmin()) {
+          return failed(this).feedback("idor.view.profile.close1").build();
+        }
         UserProfile requestedProfile = new UserProfile(userId);
-        // secure code would ensure there was a horizontal access control check prior to dishing up
-        // the requested profile
         if (requestedProfile.getUserId() != null
             && requestedProfile.getUserId().equals("2342388")) {
           return success(this)
