@@ -91,13 +91,17 @@ public class MissingFunctionACUsers {
       consumes = "application/json",
       produces = "application/json")
   @ResponseBody
-  public User addUser(@RequestBody User newUser) {
+  public ResponseEntity<User> addUser(
+      @RequestBody User newUser, @CurrentUsername String currentUsername) {
+    if (!isAdmin(currentUsername)) {
+      return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+    }
     try {
       userRepository.save(newUser);
-      return newUser;
+      return ResponseEntity.ok(newUser);
     } catch (Exception ex) {
       log.error("Error creating new User", ex);
-      return null;
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
     }
 
     // @RequestMapping(path = {"user/{username}","/"}, method = RequestMethod.DELETE, consumes =

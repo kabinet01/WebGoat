@@ -12,7 +12,8 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.succes
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.owasp.webgoat.container.LessonDataSource;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -25,6 +26,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @AssignmentHints(value = {"SqlStringInjectionHint3-1", "SqlStringInjectionHint3-2"})
 public class SqlInjectionLesson3 implements AssignmentEndpoint {
+
+  private static final Pattern EXPECTED_UPDATE =
+      Pattern.compile(
+          "^\\s*update\\s+employees\\s+set\\s+department\\s*=\\s*'([^']+)'\\s+where\\s+(last_name|userid)\\s*=\\s*'?([a-z0-9 -]+)'?\\s*;?\\s*$",
+          Pattern.CASE_INSENSITIVE);
 
   private final LessonDataSource dataSource;
 
@@ -39,14 +45,27 @@ public class SqlInjectionLesson3 implements AssignmentEndpoint {
   }
 
   protected AttackResult injectableQuery(String query) {
+    Matcher requestedUpdate = query == null ? null : EXPECTED_UPDATE.matcher(query);
+    if (requestedUpdate == null || !requestedUpdate.matches()) {
+      return failed(this).build();
+    }
     try (Connection connection = dataSource.getConnection()) {
-      try (Statement statement =
-          connection.createStatement(TYPE_SCROLL_INSENSITIVE, CONCUR_READ_ONLY)) {
-        Statement checkStatement =
-            connection.createStatement(TYPE_SCROLL_INSENSITIVE, CONCUR_READ_ONLY);
-        statement.executeUpdate(query);
-        ResultSet results =
-            checkStatement.executeQuery("SELECT * FROM employees WHERE last_name='Barnett';");
+      String predicateColumn = requestedUpdate.group(2).toLowerCase();
+      String updateSql =
+          "last_name".equals(predicateColumn)
+              ? "UPDATE employees SET department = ? WHERE last_name = ?"
+              : "UPDATE employees SET department = ? WHERE userid = ?";
+      try (var statement = connection.prepareStatement(updateSql);
+          var checkStatement =
+              connection.prepareStatement(
+                  "SELECT * FROM employees WHERE last_name = ?",
+                  TYPE_SCROLL_INSENSITIVE,
+                  CONCUR_READ_ONLY)) {
+        statement.setString(1, requestedUpdate.group(1));
+        statement.setString(2, requestedUpdate.group(3));
+        statement.executeUpdate();
+        checkStatement.setString(1, "Barnett");
+        ResultSet results = checkStatement.executeQuery();
         StringBuilder output = new StringBuilder();
         // user completes lesson if the department of Tobi Barnett now is 'Sales'
         results.first();

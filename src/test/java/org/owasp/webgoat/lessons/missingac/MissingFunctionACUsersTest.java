@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import org.hamcrest.CoreMatchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.owasp.webgoat.WithWebGoatUser;
 import org.owasp.webgoat.container.plugins.LessonTest;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -23,6 +24,7 @@ class MissingFunctionACUsersTest extends LessonTest {
   }
 
   @Test
+  @WithWebGoatUser(username = "Jerry")
   void getUsers() throws Exception {
     mockMvc
         .perform(
@@ -37,6 +39,7 @@ class MissingFunctionACUsersTest extends LessonTest {
   }
 
   @Test
+  @WithWebGoatUser(username = "Jerry")
   void addUser() throws Exception {
     var user =
         """
@@ -55,5 +58,21 @@ class MissingFunctionACUsersTest extends LessonTest {
                 .header("Content-type", "application/json"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.size()", is(4)));
+  }
+
+  @Test
+  @WithWebGoatUser(username = "Tom")
+  void nonAdminCannotAddUser() throws Exception {
+    var user =
+        """
+        {"username":"intruder-admin","password":"newUser12","admin":true}
+        """;
+
+    mockMvc
+        .perform(
+            MockMvcRequestBuilders.post("/access-control/users")
+                .header("Content-type", "application/json")
+                .content(user))
+        .andExpect(status().isForbidden());
   }
 }

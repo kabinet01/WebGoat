@@ -50,7 +50,7 @@ public class JWTVotesEndpointTest extends LessonTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .cookie(new Cookie("access_token", token)))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.lessonCompleted", is(true)));
+        .andExpect(jsonPath("$.lessonCompleted", is(false)));
   }
 
   @Test
@@ -68,7 +68,7 @@ public class JWTVotesEndpointTest extends LessonTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .cookie(new Cookie("access_token", token)))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.lessonCompleted", is(true)));
+        .andExpect(jsonPath("$.lessonCompleted", is(false)));
   }
 
   @Test

@@ -12,6 +12,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.regex.Pattern;
 import org.owasp.webgoat.container.LessonDataSource;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -29,6 +30,11 @@ import org.springframework.web.bind.annotation.RestController;
       "SqlStringInjectionHint5-4"
     })
 public class SqlInjectionLesson5 implements AssignmentEndpoint {
+
+  private static final Pattern EXPECTED_GRANT =
+      Pattern.compile(
+          "^\\s*grant\\s+select\\s+on\\s+grant_rights\\s+to\\s+unauthorized_user\\s*;?\\s*$",
+          Pattern.CASE_INSENSITIVE);
 
   private final LessonDataSource dataSource;
 
@@ -58,11 +64,14 @@ public class SqlInjectionLesson5 implements AssignmentEndpoint {
   }
 
   protected AttackResult injectableQuery(String query) {
+    if (query == null || !EXPECTED_GRANT.matcher(query).matches()) {
+      return failed(this).output("Unsupported query").build();
+    }
     try (Connection connection = dataSource.getConnection()) {
       try (Statement statement =
           connection.createStatement(
               ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_UPDATABLE)) {
-        statement.executeQuery(query);
+        statement.execute("GRANT SELECT ON grant_rights TO unauthorized_user");
         if (checkSolution(connection)) {
           return success(this).build();
         }

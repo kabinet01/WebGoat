@@ -6,6 +6,7 @@ package org.owasp.webgoat.lessons.pathtraversal;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 
 /**
@@ -27,11 +28,28 @@ final class PathTraversalUtils {
    *     or {@code null} when the requested name would escape the directory.
    */
   static File resolveWithinDirectory(File baseDirectory, String requestedName) throws IOException {
-    Path base = baseDirectory.getCanonicalFile().toPath().normalize();
-    Path resolved = base.resolve(requestedName).normalize();
+    Path resolved = resolveWithinDirectory(baseDirectory.getCanonicalFile().toPath(), requestedName);
+    return resolved == null ? null : resolved.toFile();
+  }
+
+  static Path resolveWithinDirectory(Path baseDirectory, String requestedName) throws IOException {
+    if (requestedName == null || requestedName.isBlank()) {
+      return null;
+    }
+    Path base = baseDirectory.toFile().getCanonicalFile().toPath().normalize();
+    Path requested;
+    try {
+      requested = Path.of(requestedName);
+    } catch (InvalidPathException e) {
+      return null;
+    }
+    if (requested.isAbsolute()) {
+      return null;
+    }
+    Path resolved = base.resolve(requested).normalize();
     if (!resolved.startsWith(base)) {
       return null;
     }
-    return resolved.toFile();
+    return resolved;
   }
 }

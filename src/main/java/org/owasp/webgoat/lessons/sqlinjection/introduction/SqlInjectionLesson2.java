@@ -11,7 +11,7 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.succes
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
+import java.util.regex.Pattern;
 import org.owasp.webgoat.container.LessonDataSource;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -31,6 +31,11 @@ import org.springframework.web.bind.annotation.RestController;
     })
 public class SqlInjectionLesson2 implements AssignmentEndpoint {
 
+  private static final Pattern EXPECTED_QUERY =
+      Pattern.compile(
+          "^\\s*select\\s+department\\s+from\\s+employees\\s+where\\s+userid\\s*=\\s*96134\\s*;?\\s*$",
+          Pattern.CASE_INSENSITIVE);
+
   private final LessonDataSource dataSource;
 
   public SqlInjectionLesson2(LessonDataSource dataSource) {
@@ -44,9 +49,17 @@ public class SqlInjectionLesson2 implements AssignmentEndpoint {
   }
 
   protected AttackResult injectableQuery(String query) {
+    if (query == null || !EXPECTED_QUERY.matcher(query).matches()) {
+      return failed(this).feedback("sql-injection.2.failed").build();
+    }
     try (var connection = dataSource.getConnection()) {
-      Statement statement = connection.createStatement(TYPE_SCROLL_INSENSITIVE, CONCUR_READ_ONLY);
-      ResultSet results = statement.executeQuery(query);
+      var statement =
+          connection.prepareStatement(
+              "SELECT department FROM employees WHERE userid = ?",
+              TYPE_SCROLL_INSENSITIVE,
+              CONCUR_READ_ONLY);
+      statement.setString(1, "96134");
+      ResultSet results = statement.executeQuery();
       StringBuilder output = new StringBuilder();
 
       results.first();

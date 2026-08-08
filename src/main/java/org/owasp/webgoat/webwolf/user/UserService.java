@@ -6,6 +6,7 @@ package org.owasp.webgoat.webwolf.user;
 
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 /**
@@ -16,9 +17,11 @@ import org.springframework.stereotype.Service;
 public class UserService implements UserDetailsService {
 
   private UserRepository userRepository;
+  private PasswordEncoder passwordEncoder;
 
-  public UserService(UserRepository userRepository) {
+  public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
     this.userRepository = userRepository;
+    this.passwordEncoder = passwordEncoder;
   }
 
   @Override
@@ -32,6 +35,6 @@ public class UserService implements UserDetailsService {
   }
 
   public void addUser(final String username, final String password) {
-    userRepository.save(new WebWolfUser(username, password));
+    userRepository.save(new WebWolfUser(username, passwordEncoder.encode(password)));
   }
 }

@@ -13,6 +13,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.regex.Pattern;
 import org.owasp.webgoat.container.LessonDataSource;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -27,6 +28,11 @@ import org.springframework.web.bind.annotation.RestController;
     value = {"SqlStringInjectionHint4-1", "SqlStringInjectionHint4-2", "SqlStringInjectionHint4-3"})
 public class SqlInjectionLesson4 implements AssignmentEndpoint {
 
+  private static final Pattern EXPECTED_ALTER =
+      Pattern.compile(
+          "^\\s*alter\\s+table\\s+employees\\s+add(?:\\s+column)?\\s+phone\\s+varchar\\s*\\(\\s*20\\s*\\)\\s*;?\\s*$",
+          Pattern.CASE_INSENSITIVE);
+
   private final LessonDataSource dataSource;
 
   public SqlInjectionLesson4(LessonDataSource dataSource) {
@@ -40,10 +46,13 @@ public class SqlInjectionLesson4 implements AssignmentEndpoint {
   }
 
   protected AttackResult injectableQuery(String query) {
+    if (query == null || !EXPECTED_ALTER.matcher(query).matches()) {
+      return failed(this).build();
+    }
     try (Connection connection = dataSource.getConnection()) {
       try (Statement statement =
           connection.createStatement(TYPE_SCROLL_INSENSITIVE, CONCUR_READ_ONLY)) {
-        statement.executeUpdate(query);
+        statement.executeUpdate("ALTER TABLE employees ADD phone VARCHAR(20)");
         connection.commit();
         ResultSet results = statement.executeQuery("SELECT phone from employees;");
         StringBuilder output = new StringBuilder();

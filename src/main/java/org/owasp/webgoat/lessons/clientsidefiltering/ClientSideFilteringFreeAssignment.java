@@ -5,7 +5,6 @@
 package org.owasp.webgoat.lessons.clientsidefiltering;
 
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
-import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
@@ -31,9 +30,10 @@ public class ClientSideFilteringFreeAssignment implements AssignmentEndpoint {
   @PostMapping("/clientSideFiltering/getItForFree")
   @ResponseBody
   public AttackResult completed(@RequestParam String checkoutCode) {
-    if (SUPER_COUPON_CODE.equals(checkoutCode)) {
-      return success(this).build();
-    }
+    // A client-visible coupon must never authorize a 100% discount. The original endpoint
+    // accepted a static value that was shipped to every browser, so anyone could submit it
+    // directly. There is no legitimate free checkout flow in this lesson; paid discount codes
+    // are handled by the store endpoint instead.
     return failed(this).build();
   }
 }

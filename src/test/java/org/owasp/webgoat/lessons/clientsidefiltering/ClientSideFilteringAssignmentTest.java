@@ -26,12 +26,12 @@ public class ClientSideFilteringAssignmentTest extends LessonTest {
   }
 
   @Test
-  public void success() throws Exception {
+  public void leakedSuperCouponIsRejected() throws Exception {
     mockMvc
         .perform(
             MockMvcRequestBuilders.post("/clientSideFiltering/getItForFree")
                 .param("checkoutCode", SUPER_COUPON_CODE))
-        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(true)));
+        .andExpect(jsonPath("$.lessonCompleted", CoreMatchers.is(false)));
   }
 
   @Test
