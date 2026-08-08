@@ -10,7 +10,6 @@ import static org.springframework.http.MediaType.ALL_VALUE;
 
 import com.google.common.collect.Lists;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -18,12 +17,10 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import org.owasp.webgoat.container.CurrentUsername;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AssignmentHints;
 import org.owasp.webgoat.container.assignments.AttackResult;
-import org.owasp.webgoat.container.session.LessonSession;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -38,14 +35,7 @@ public class ForgedReviews implements AssignmentEndpoint {
 
   private static final Map<String, List<Review>> userReviews = new HashMap<>();
   private static final List<Review> REVIEWS = new ArrayList<>();
-  private static final String CSRF_TOKEN_HEADER = "X-CSRF-Token";
-  private static final String CSRF_TOKEN_SESSION_KEY = "csrf-review-token";
-
-  private final LessonSession userSessionData;
-
-  public ForgedReviews(LessonSession userSessionData) {
-    this.userSessionData = userSessionData;
-  }
+  private static final String weakAntiCSRF = "2aa14227b9a13d0bede0388a7fba9aa9";
 
   static {
     REVIEWS.add(
@@ -65,16 +55,7 @@ public class ForgedReviews implements AssignmentEndpoint {
       produces = MediaType.APPLICATION_JSON_VALUE,
       consumes = ALL_VALUE)
   @ResponseBody
-  public Collection<Review> retrieveReviews(
-      @CurrentUsername String username, HttpServletResponse response) {
-    // Issue a fresh, unpredictable, per-session anti-CSRF token every time the page is
-    // (re)loaded. Only a same-origin caller can read this response (and therefore this
-    // header), so a forged cross-site page has no way to learn the value it must echo back
-    // on /csrf/review (POST).
-    String token = UUID.randomUUID().toString();
-    userSessionData.setValue(CSRF_TOKEN_SESSION_KEY, token);
-    response.setHeader(CSRF_TOKEN_HEADER, token);
-
+  public Collection<Review> retrieveReviews(@CurrentUsername String username) {
     Collection<Review> allReviews = Lists.newArrayList();
     Collection<Review> newReviews = userReviews.get(username);
     if (newReviews != null) {
@@ -97,24 +78,7 @@ public class ForgedReviews implements AssignmentEndpoint {
     final String host = (request.getHeader("host") == null) ? "NULL" : request.getHeader("host");
     final String referer =
         (request.getHeader("referer") == null) ? "NULL" : request.getHeader("referer");
-
-    // Primary defense: the request must carry the unpredictable, per-session anti-CSRF
-    // token that was handed out on the last GET of this page. A cross-site forger cannot
-    // read that token (same-origin policy blocks reading the response) and so cannot
-    // reproduce it, regardless of whether it can make the browser send the request.
-    Object expectedToken = userSessionData.getValue(CSRF_TOKEN_SESSION_KEY);
-    if (expectedToken == null || validateReq == null || !validateReq.equals(expectedToken)) {
-      return failed(this).feedback("csrf-you-forgot-something").build();
-    }
-
-    // Secondary defense: reject requests whose Referer host does not match the host the
-    // request was sent to (defense in depth on top of the token check).
-    if (!"NULL".equals(referer)) {
-      String[] refererArr = referer.split("/");
-      if (refererArr.length > 2 && !refererArr[2].equals(host)) {
-        return failed(this).feedback("csrf-you-forgot-something").build();
-      }
-    }
+    final String[] refererArr = referer.split("/");
 
     Review review = new Review();
     review.setText(reviewText);
@@ -124,7 +88,17 @@ public class ForgedReviews implements AssignmentEndpoint {
     var reviews = userReviews.getOrDefault(username, new ArrayList<>());
     reviews.add(review);
     userReviews.put(username, reviews);
-
-    return success(this).feedback("csrf-review.success").build();
+    // short-circuit
+    if (validateReq == null || !validateReq.equals(weakAntiCSRF)) {
+      return failed(this).feedback("csrf-you-forgot-something").build();
+    }
+    // we have the spoofed files
+    if (referer != "NULL" && refererArr[2].equals(host)) {
+      return failed(this).feedback("csrf-same-host").build();
+    } else {
+      return success(this)
+          .feedback("csrf-review.success")
+          .build(); // feedback("xss-stored-comment-failure")
+    }
   }
 }

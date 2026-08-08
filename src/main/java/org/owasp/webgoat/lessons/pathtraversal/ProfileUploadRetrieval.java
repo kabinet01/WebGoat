@@ -8,6 +8,7 @@ import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 
 import jakarta.annotation.PostConstruct;
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -88,18 +89,16 @@ public class ProfileUploadRetrieval implements AssignmentEndpoint {
 
   @GetMapping("/PathTraversal/random-picture")
   @ResponseBody
-  public ResponseEntity<?> getProfilePicture(
-      @RequestParam(value = "id", required = false) String id) {
+  public ResponseEntity<?> getProfilePicture(HttpServletRequest request) {
+    var queryParams = request.getQueryString();
+    if (queryParams != null && (queryParams.contains("..") || queryParams.contains("/"))) {
+      return ResponseEntity.badRequest()
+          .body("Illegal characters are not allowed in the query params");
+    }
     try {
-      String requestedName =
-          (id == null ? String.valueOf(RandomUtils.nextInt(1, 11)) : id) + ".jpg";
+      var id = request.getParameter("id");
       var catPicture =
-          PathTraversalUtils.resolveWithinDirectory(catPicturesDirectory, requestedName);
-
-      if (catPicture == null) {
-        return ResponseEntity.badRequest()
-            .body("Illegal characters are not allowed in the query params");
-      }
+          new File(catPicturesDirectory, (id == null ? RandomUtils.nextInt(1, 11) : id) + ".jpg");
 
       if (catPicture.getName().toLowerCase().contains("path-traversal-secret.jpg")) {
         return ResponseEntity.ok()

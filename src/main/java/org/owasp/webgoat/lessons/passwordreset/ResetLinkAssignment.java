@@ -116,11 +116,7 @@ public class ResetLinkAssignment implements AssignmentEndpoint {
     }
     if (checkIfLinkIsFromTom(form.getResetLink(), username)) {
       usersToTomPassword.put(username, form.getPassword());
-      userToTomResetLink.remove(username);
     }
-    // A reset link may only ever be used to change a password once; without this the same
-    // link stays valid forever and can be replayed by anyone who observed or intercepted it.
-    resetLinks.remove(form.getResetLink());
     modelAndView.setViewName(VIEW_FORMATTER.formatted("success"));
     return modelAndView;
   }

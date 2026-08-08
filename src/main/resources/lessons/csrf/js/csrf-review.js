@@ -32,11 +32,7 @@ $(document).ready(function () {
 
     function getChallenges() {
         $("#list").empty();
-        $.get('csrf/review', function (result, status, jqXHR) {
-            // The server hands out a fresh per-session anti-CSRF token on every load of
-            // this page via the X-CSRF-Token response header; the review form must echo
-            // it back on submit or the POST will be rejected.
-            $("#validateReq").val(jqXHR.getResponseHeader('X-CSRF-Token'));
+        $.get('csrf/review', function (result, status) {
             for (var i = 0; i < result.length; i++) {
                 var comment = html.replace('USER', result[i].user);
                 comment = comment.replace('DATETIME', result[i].dateTime);

@@ -213,7 +213,10 @@ define(['jquery',
 
             /* for testing */
             showTestParam: function (param) {
-                this.$el.find('.lesson-content').html('test:' + param);
+                // param comes straight from the URL fragment (route "test/:param") and is
+                // attacker-controlled; render it as text, not HTML, so it can never be
+                // parsed/executed as markup (this is the DOM XSS sink for this lesson).
+                this.$el.find('.lesson-content').text('test:' + param);
             },
 
             resetLesson: function () {

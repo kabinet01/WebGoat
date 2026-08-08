@@ -6,6 +6,7 @@ package org.owasp.webgoat.lessons.sqlinjection.mitigation;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +26,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("SqlInjectionMitigations/servers")
 @Slf4j
 public class Servers {
+
+  // ORDER BY cannot take a bound parameter for a column/expression, so the column name has to be
+  // validated against a strict allow-list of the columns this endpoint actually supports sorting
+  // on, matching the select list below. Anything else (e.g. a CASE WHEN(...) expression) is
+  // rejected instead of being concatenated into the query.
+  private static final Set<String> SORTABLE_COLUMNS =
+      Set.of("id", "hostname", "ip", "mac", "status", "description");
+  private static final String DEFAULT_COLUMN = "id";
 
   private final LessonDataSource dataSource;
 
@@ -48,13 +57,14 @@ public class Servers {
   @ResponseBody
   public List<Server> sort(@RequestParam String column) throws Exception {
     List<Server> servers = new ArrayList<>();
+    String sortColumn = SORTABLE_COLUMNS.contains(column) ? column : DEFAULT_COLUMN;
 
     try (var connection = dataSource.getConnection()) {
       try (var statement =
           connection.prepareStatement(
               "select id, hostname, ip, mac, status, description from SERVERS where status <> 'out"
                   + " of order' order by "
-                  + column)) {
+                  + sortColumn)) {
         try (var rs = statement.executeQuery()) {
           while (rs.next()) {
             Server server =
