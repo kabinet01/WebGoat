@@ -4,7 +4,6 @@
  */
 package org.owasp.webgoat.lessons.xss.stored;
 
-import static org.apache.commons.text.StringEscapeUtils.escapeHtml4;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.failed;
 import static org.owasp.webgoat.container.assignments.AttackResultBuilder.success;
 import static org.springframework.http.MediaType.ALL_VALUE;
@@ -20,7 +19,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.owasp.webgoat.container.CurrentUsername;
 import org.owasp.webgoat.container.assignments.AssignmentEndpoint;
 import org.owasp.webgoat.container.assignments.AttackResult;
@@ -69,13 +67,7 @@ public class StoredXssComments implements AssignmentEndpoint {
       allComments.addAll(newComments);
     }
     Collections.reverse(allComments);
-    // Encode at the output sink: the client injects `text` straight into the DOM, so every
-    // comment served here must be HTML-safe, including the comments above that were seeded
-    // (with a live <script>) before this fix existed. Encoding here, rather than only at
-    // write time, guarantees that pre-existing stored payloads are also rendered inert.
-    return allComments.stream()
-        .map(c -> new Comment(c.getUser(), c.getDateTime(), escapeHtml4(c.getText())))
-        .collect(Collectors.toList());
+    return allComments;
   }
 
   @PostMapping("/CrossSiteScriptingStored/stored-xss")
@@ -83,9 +75,6 @@ public class StoredXssComments implements AssignmentEndpoint {
   public AttackResult createNewComment(
       @RequestBody String commentStr, @CurrentUsername String username) {
     Comment comment = parseJson(commentStr);
-    if (comment.getText() == null) {
-      comment.setText("");
-    }
 
     List<Comment> comments = userComments.getOrDefault(username, new ArrayList<>());
     comment.setDateTime(LocalDateTime.now().format(fmt));
@@ -94,9 +83,7 @@ public class StoredXssComments implements AssignmentEndpoint {
     comments.add(comment);
     userComments.put(username, comments);
 
-    // Evaluate success against the encoded form: only a comment that would still render as a
-    // live <script> tag after output encoding counts as a successful stored XSS.
-    if (escapeHtml4(comment.getText()).contains(phoneHomeString)) {
+    if (comment.getText().contains(phoneHomeString)) {
       return (success(this).feedback("xss-stored-comment-success").build());
     } else {
       return (failed(this).feedback("xss-stored-comment-failure").build());

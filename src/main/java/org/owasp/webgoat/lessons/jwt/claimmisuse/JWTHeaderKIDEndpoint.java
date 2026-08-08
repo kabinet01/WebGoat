@@ -67,20 +67,15 @@ public class JWTHeaderKIDEndpoint implements AssignmentEndpoint {
                     new SigningKeyResolverAdapter() {
                       @Override
                       public byte[] resolveSigningKeyBytes(JwsHeader header, Claims claims) {
-                        // The "kid" header comes straight from the (attacker-controlled)
-                        // token, so it must never be concatenated into SQL. Resolve it with a
-                        // bound parameter against the fixed set of keys in jwt_keys instead of
-                        // building the query out of untrusted input.
                         final String kid = (String) header.get("kid");
-                        try (var connection = dataSource.getConnection();
-                            var statement =
-                                connection.prepareStatement(
-                                    "SELECT key FROM jwt_keys WHERE id = ?")) {
-                          statement.setString(1, kid);
-                          try (ResultSet rs = statement.executeQuery()) {
-                            while (rs.next()) {
-                              return TextCodec.BASE64.decode(rs.getString(1));
-                            }
+                        try (var connection = dataSource.getConnection()) {
+                          ResultSet rs =
+                              connection
+                                  .createStatement()
+                                  .executeQuery(
+                                      "SELECT key FROM jwt_keys WHERE id = '" + kid + "'");
+                          while (rs.next()) {
+                            return TextCodec.BASE64.decode(rs.getString(1));
                           }
                         } catch (SQLException e) {
                           errorMessage[0] = e.getMessage();
@@ -102,9 +97,7 @@ public class JWTHeaderKIDEndpoint implements AssignmentEndpoint {
         } else {
           return failed(this).feedback("jwt-final-not-tom").build();
         }
-      } catch (JwtException | IllegalArgumentException e) {
-        // IllegalArgumentException covers the case where the (now safely resolved) "kid"
-        // does not match a known key, so no signing key was found for the token.
+      } catch (JwtException e) {
         return failed(this).feedback("jwt-invalid-token").output(e.toString()).build();
       }
     }
