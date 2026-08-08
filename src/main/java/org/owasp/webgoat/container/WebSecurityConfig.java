@@ -5,6 +5,7 @@
 package org.owasp.webgoat.container;
 
 import lombok.AllArgsConstructor;
+import org.owasp.webgoat.security.CsrfCookieFilter;
 import org.owasp.webgoat.container.users.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -16,6 +17,9 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfFilter;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.SecurityFilterChain;
 
 /** Security configuration for WebGoat. */
@@ -28,6 +32,9 @@ public class WebSecurityConfig {
 
   @Bean
   public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    var csrfTokenRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+    csrfTokenRepository.setCookieCustomizer(cookie -> cookie.sameSite("Strict"));
+
     return http.authorizeHttpRequests(
             auth ->
                 auth.requestMatchers(
@@ -39,6 +46,7 @@ public class WebSecurityConfig {
                         "/plugins/**",
                         "/registration",
                         "/register.mvc",
+                        "/csrf/token",
                         "/actuator/**")
                     .permitAll()
                     .anyRequest()
@@ -57,7 +65,11 @@ public class WebSecurityConfig {
               oidc.loginPage("/login");
             })
         .logout(logout -> logout.deleteCookies("JSESSIONID").invalidateHttpSession(true))
-        .csrf(csrf -> csrf.disable())
+        .csrf(
+            csrf ->
+                csrf.csrfTokenRepository(csrfTokenRepository)
+                    .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
+        .addFilterAfter(new CsrfCookieFilter(), CsrfFilter.class)
         .exceptionHandling(
             handling ->
                 handling.authenticationEntryPoint(new AjaxAuthenticationEntryPoint("/login")))
